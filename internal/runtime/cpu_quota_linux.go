@@ -32,7 +32,7 @@ import (
 
 // CPUQuotaToGOMAXPROCS converts the CPU quota applied to the calling process
 // to a valid GOMAXPROCS value.
-func CPUQuotaToGOMAXPROCS(minValue int) (int, CPUQuotaStatus, error) {
+func CPUQuotaToGOMAXPROCS(minValue int, rounder func(float64) int) (int, CPUQuotaStatus, error) {
 	cgroups, err := newQueryer()
 	if err != nil {
 		return -1, CPUQuotaUndefined, err
@@ -43,7 +43,7 @@ func CPUQuotaToGOMAXPROCS(minValue int) (int, CPUQuotaStatus, error) {
 		return -1, CPUQuotaUndefined, err
 	}
 
-	maxProcs := int(math.Floor(quota))
+	maxProcs := rounder(quota)
 	if minValue > 0 && maxProcs < minValue {
 		return minValue, CPUQuotaMinUsed, nil
 	}

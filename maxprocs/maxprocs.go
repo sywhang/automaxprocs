@@ -24,6 +24,7 @@
 package maxprocs // import "go.uber.org/automaxprocs/maxprocs"
 
 import (
+	"math"
 	"os"
 	"runtime"
 
@@ -38,7 +39,8 @@ func currentMaxProcs() int {
 
 type config struct {
 	printf        func(string, ...interface{})
-	procs         func(int) (int, iruntime.CPUQuotaStatus, error)
+	procs         func(i int, f func(float64) int) (int, iruntime.CPUQuotaStatus, error)
+	rounder       func(float64) int
 	minGOMAXPROCS int
 }
 
@@ -71,6 +73,14 @@ func Min(n int) Option {
 	})
 }
 
+// Rounder sets a function for rounding non-integer values
+// for setting GOMAXPROCS value.
+func Rounder(f func(float64) int) Option {
+	return optionFunc(func(cfg *config) {
+		cfg.rounder = f
+	})
+}
+
 type optionFunc func(*config)
 
 func (of optionFunc) apply(cfg *config) { of(cfg) }
@@ -83,6 +93,7 @@ func (of optionFunc) apply(cfg *config) { of(cfg) }
 func Set(opts ...Option) (func(), error) {
 	cfg := &config{
 		procs:         iruntime.CPUQuotaToGOMAXPROCS,
+		rounder:       func(f float64) int { return int(math.Floor(f)) },
 		minGOMAXPROCS: 1,
 	}
 	for _, o := range opts {
@@ -102,7 +113,7 @@ func Set(opts ...Option) (func(), error) {
 		return undoNoop, nil
 	}
 
-	maxProcs, status, err := cfg.procs(cfg.minGOMAXPROCS)
+	maxProcs, status, err := cfg.procs(cfg.minGOMAXPROCS, cfg.rounder)
 	if err != nil {
 		return undoNoop, err
 	}
